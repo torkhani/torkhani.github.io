@@ -27,29 +27,28 @@ Si une classe a plus d’une responsabilité, ces dernières se retrouveront li�
 
 
     <?php
-
     class User
     {
         public function login($user, $password)
-          {
-              // si la session n'existe pas encore, il faut l'initialiser
-              if (!session_id()) {
-                  session_start();
-              }
-             // rechercher dans la table user un utilisateur avec ce couple login / mot de passe
-             $sth = $this->pdo->query("SELECT * FROM users WHERE username='$user' AND password='$password'");
-             // si il y a des résultats
+        {
+            // si la session n'existe pas encore, il faut l'initialiser
+            if (!session_id()) {
+                 session_start();
+            }
+            // rechercher dans la table user un utilisateur avec ce couple login / mot de passe
+            $sth = $this->pdo->query("SELECT * FROM users WHERE username='$user' AND password='$password'");
+            // si il y a des résultats
              if ($sth->rowCount()) {
-                 // hydrater l'objet courant
-                 $this->data = $sth->fetch(PDO::FETCH_ASSOC);
-                 // enregistrer l'utilisateur courant sur la session
-                 $_SESSION['logged'] = true;
-                 $_SESSION['user'] = $this;
-                 return true;
+                // hydrater l'objet courant
+                $this->data = $sth->fetch(PDO::FETCH_ASSOC);
+                // enregistrer l'utilisateur courant sur la session
+                $_SESSION['logged'] = true;
+                $_SESSION['user'] = $this;
+                return true;
              } else {
-                 return false;
+                return false;
              }
-         }
+        }
     }
 
 
@@ -150,8 +149,8 @@ Il s'agit ni-plus ni-moins que d'imposer le respect des prototypes d'une classe 
                   throw new InvalidArgumentException("with or height cannot be null or negative");
              $this->width  = $width;
              $this->height = $height;
-         }
-     }
+          }
+      }
      class Square extends Rectangle
      {
          public function setDimentions($width, $height)
