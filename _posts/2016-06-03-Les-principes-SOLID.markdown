@@ -8,7 +8,9 @@ pitch:  "L'objectif de cet article est de presenter les principes SOLID."
 comments: True
 categories: common
 ---
+
 **Le principe SOLID**
+
 SOLID définit cinq bonnes pratiques orientées objet à appliquer au code afin d'en simplifier la maintenance, la testabilité et les évolutions futures.
 SOLID est acronyme regroupant les principes suivants :
     Single Responsability Principle (SRP),
@@ -16,10 +18,13 @@ SOLID est acronyme regroupant les principes suivants :
     Liskov Substitution Principle (LSK),
     Interface Segregation Principle (ISP),
     Dependency Injection Principle (DIP)
+
+
 **Single Responsability Principle (SRP)**
+
 Comme son nom l’indique, ce principe signifie qu’une classe ne doit posséder qu’une et une seule responsabilité.
 Si une classe a plus d’une responsabilité, ces dernières se retrouveront liées. Les modifications apportées à une responsabilité impacteront l’autre, augmentant la rigidité et la fragilité du code.
-<?php
+
  class User
  {
     public function login($user, $password)
@@ -43,12 +48,14 @@ Si une classe a plus d’une responsabilité, ces dernières se retrouveront li�
          }
      }
  }
+
 Dans cet exemple , La méthode login à deux casquettes: elle se charge de trouver les données de l'utilisateur et de gêrer la session. Ce qui pose plusieurs problèmes:
     si on change la structure de la table users, alors tous les scripts qui dépendent du contenu de $_SESSION['user'] sont potentiellement invalides
     si on décide de changer la méthode d'authentification, alors il faut également changer la classe User et potentiellement la requête de sélection
     on ne peut pas écrire simplement les tests unitaires de cette méthode car elle utilise la superglobale $_SESSION
 Une solution préférable est donc de séparer ces deux responsabilités:
-<?php
+
+
   class User
   {
       public function getUserFromLoginPassword($user, $password)
@@ -82,9 +89,13 @@ Une solution préférable est donc de séparer ces deux responsabilités:
          }
      }
  }
+
 On dirait pourtant que ça ne change pas grand-chose au final. On a juste déplacé du code d'un point A à un point B. Pourtant il y a une différence fondamentale entre ces deux codes: tant que la méthode User::getUserFromLoginPassword conservera son prototype (i.e. son nom et ses arguments), la classe Security pourra fonctionner en parfaite autonomie et on n'aura pas à changer la classe User si on doit changer la méthode de login. De plus, il devient désormais possible de tester exhaustivement la classe User.
+
 **Open Closed Principle (OCP)**
+
 Le principe ouvert / fermé consiste à rendre les modules ouverts à l'extension et fermés aux modifications. En d'autres termes, il s'agit de pouvoir enrichir aisément les fonctionnalités d'un module sans avoir à en modifier son comportement.
+
  <?php
   class Vehicle
   {
@@ -104,10 +115,12 @@ Le principe ouvert / fermé consiste à rendre les modules ouverts à l'extensio
      }
  }
  ?>
+
 Ma voiture roule au GPL. Mais ce cas n'est visiblement pas géré par le constructeur de Car. Dans l'exemple ci-dessus, mes seules alternatives sont:
     ajouter à la main case 'gpl' dans le swich
     étendre Car en GplCar en surchargeant son constructeur
 Il eut été préférable de pouvoir passer directement un objet moteur (engine) au constructeur afin qu'on soit libre de choisir quel moteur on veut pour la voiture:
+
 <?php
   class Car
   {
@@ -117,8 +130,11 @@ Il eut été préférable de pouvoir passer directement un objet moteur (engine)
       }
   }
  ?>
+
 **Liskov Substitution Principle (LSK)**
+
 Il s'agit ni-plus ni-moins que d'imposer le respect des prototypes d'une classe au niveau de ses filles. Une classe dérivée doit toujour se comporter comme sa mère afin que son utilisation soit rigoureusement identique: on doit pouvoir les substituer. Il faut également éviter de lever des exceptions imprévues ou modifier l'état de l'objet de manière inadaptée par rapport au comportement de la mère.
+
 <?php
   class Rectangle
   {
@@ -139,8 +155,11 @@ Il s'agit ni-plus ni-moins que d'imposer le respect des prototypes d'une classe 
          parent::setDimentions($width, $height);
      }
  }
+
 **Interface Segregation Principle (ISP)**
+
 Les client ne devraient pas dépendre de méthodes qu'ils n'utilisent pas. On pourrait presque y voir une forme d'héritage fonctionnel: une interface ne devrait pas déclarer plus d'un ensemble cohérent de méthodes. On parle aussi d'interfaces de rôles.
+
 <?php
   interface UserInterface
   {
@@ -153,7 +172,9 @@ Les client ne devraient pas dépendre de méthodes qu'ils n'utilisent pas. On po
  class User implements UserInterface
  {
  }
+
 Ici l'interface UserInterface présente deux rôles: la gestion du login ainsi que la gestion des droits. Il eut été préférable de séparer ces deux rôles dans deux interfaces séparées, quitte à les réunir par la suite dans l'implémentation concrête de la classe User:
+
 <?php
  interface LoginInterface
   {
@@ -169,10 +190,14 @@ Ici l'interface UserInterface présente deux rôles: la gestion du login ainsi q
  class User implements LogginInterface, PermissionInterface
  {
  }
+
 Cette aproche est beaucoup plus souple car désormais les classes clientes pourront utiliser les instances de LoginInterface et PermissionInterface suivant leur besoin sans se retrouver obligé de supporter d'autres méthodes que celles décrites par le rôle qu'elles veulent utiliser. Par exemple, un composant qui ne s'occupe que de vérifier qu'un utilisateur dispose bien des droits d'accès à une ressource se fiche pas mal des méthodes de LoginInterface.
 Il faut cependant faire attention à ne pas trop segmenter les rôles et se retrouver ainsi avec une multitude d'interfaces. Ici encore, il faut faire preuve de bon sens.
+
 **Dependency Injection Principle (DIP)**
+
 Le dernier de ces 5 principes est le principe d’inversion des dépendances (D pour Dependency Inversion).
+
 class EBookReader
   {
       private $book;
@@ -192,8 +217,10 @@ class EBookReader
          echo "reading a pdf book.";
      }
  }
+
 Imaginons un instant que le scénario suivant: vous travaillez pour un éditeur de livres en ligne dont le choix initial était de proposer des livres au format PDF. Vous avez alors créé la classe PDFBook pour représenter les entrées de la table pdf_books ainsi que la liseuse EBookReader et tout fonctionne bien.
 Jusqu'au jour où un commercial vient vous voir avec une idée révolutionnaire ! On va se plugger sur l'API d'un partenaire pour proposer la lecture de ses bouquins au travers de notre interface afin d'augmenter pour l'utilisateur la taille de la bibliothèque. Chouette ! A ceci près que l'API vous envoie des fichiers au format ePub, illisibles par votre liseuse. Vous êtes donc obligé de mettre à jour EBookReader en ajoutant la gestion du nouveau format:
+
 <?php
   class EBookReader
   {
@@ -216,7 +243,9 @@ Jusqu'au jour où un commercial vient vous voir avec une idée révolutionnaire 
          echo "reading a epub book.";
      }
  }
+
 Puis vient le jour où on décide d'ajouter le format Docx, puis le format Kindle, puis le format TXT etc. En regardant en arrière, il aurait mieux valu que la liseuse accepte un type abstrat d'EBook plutôt qu'un type concrêt:
+
 <?php
  interface EBook
   {
@@ -237,9 +266,13 @@ Puis vient le jour où on décide d'ajouter le format Docx, puis le format Kindl
      }
  }
  ?>
+
 Désormais, vous pouvez créer autant de types d'EBook que vous voulez sans devoir toucher à la classe EBookReader à chaque fois.
+
 **Utiliser les événements Symfony2 pour un code SOLID**
+
 Prenons pour exemple, un service Symfony dont l'objectif est d'enregistrer les données d'un utilisateur issu d'un formulaire. Le code pourrait alors ressembler à quelque chose comme cela :
+
 <?php
 // Controller/UserController.php
 public function newAction(Request $request)
@@ -272,6 +305,7 @@ public function save(User $user)
 Sauf qu'en ajoutant cette ligne, nous venons de casser le principe de responsabilité unique de notre service gérant les utilisateurs. Réfléchissez bien, si vous souhaitez réutiliser la classe UserManager dans une autre application, mais que cette dernière ne souhaite pas envoyer de notification, comment allez-vous faire ?
 Symfony2 nous permet d'éviter ce couplage très simplement, au travers de la gestion des événements. L'idée est très simple, une fois l'enregistrement du nouvel utilisateur effectué, nous allons émettre un signal afin d'indiquer le succès de la création. Ce signal pourra alors être capter par différentes classes afin de déclencher différentes actions (un envoi de notification dans notre exemple).
 Commençons par modifier notre classe UserManager :
+
 // Manager/UserManager.php
 public function __construct(EventDispatcherInterface $dispatcher, ...)
 {
@@ -284,6 +318,7 @@ public function save(User $user)
   $this->entityManager->flush();
   $this->dispatcher->dispatch('user.create', new UserEvent($user));
 }
+
 use Symfony\Component\EventDispatcher\Event;
 class UserEvent extends Event
 {
@@ -297,6 +332,7 @@ class UserEvent extends Event
       return $this->user;
   }
 }
+
 <?php
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 class UserNotificationListener implements EventSubscriberInterface
@@ -317,6 +353,8 @@ class UserNotificationListener implements EventSubscriberInterface
     ];
   }
 }
+
+
 // Resources/config/services.yml
 services:
   listener.user_mailer_notification:
