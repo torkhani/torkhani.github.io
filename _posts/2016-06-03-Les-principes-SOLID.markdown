@@ -161,158 +161,180 @@ Le principe de ségrégation d'interfaces est identique au principe de responsab
 
     <?php
 
-    interface UrlGeneratorInterface
+    interface UserInterface
     {
-        public function generate($name, $parameters = array());
+      public function login($user, $password);
+
+      public function logout();
+
+      public function isConnected();
+
+      public function isAdmin();
+
+      public function getRights();
     }
 
-    interface UrlMatcherInterface
+    class User implements UserInterface
     {
-        public function match($pathinfo);
+
     }
 
-    interface RouterInterface extends UrlMatcherInterface, UrlGeneratorInterface
-    {
-        public function getRouteCollection();
-    }
+Ici l'interface UserInterface présente deux rôles: la gestion du login ainsi que la gestion des droits. Il eut été préférable de séparer ces deux rôles dans deux interfaces séparées, quitte à les réunir par la suite dans l'implémentation concrête de la classe User:
 
+      interface LoginInterface
+      {
+          public function login($user, $password);
+          public function logout();
+          public function isConnected();
+      }
 
-    <?php
+     interface PermissionInterface
+     {
+         public function isAdmin();
+         public function getRights();
+     }
+     class User implements LogginInterface, PermissionInterface
+     {
 
-    namespace Symfony\Bridge\Twig\Extension;
+     }
 
-    use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+Cette aproche est beaucoup plus souple car désormais les classes clientes pourront utiliser les instances de LoginInterface et PermissionInterface suivant leur besoin sans se retrouver obligé de supporter d'autres méthodes que celles décrites par le rôle qu'elles veulent utiliser. Par exemple, un composant qui ne s'occupe que de vérifier qu'un utilisateur dispose bien des droits d'accès à une ressource se fiche pas mal des méthodes de LoginInterface.
 
-    class RoutingExtension extends \Twig_Extension
-    {
-        private $generator;
-
-        public function __construct(UrlGeneratorInterface $generator)
-        {
-            $this->generator = $generator;
-        }
-
-        public function getPath($name, $parameters = array())
-        {
-            return $this->generator->generate($name, $parameters);
-        }
-    }
 
 **Dependency Injection Principle (DIP)**
 
 Le dernier de ces 5 principes est le principe d’inversion des dépendances.
- stipule qu'il faille programmer par rapport à des abstractions plutôt que des implémentations.
+Stipule qu'il faille programmer par rapport à des abstractions plutôt que des implémentations.
 
 Le code ci-dessous réalise complètement l'inverse puisque la classe DataImporter dépend directement de deux implémentations concrètes du fait de l'instanciation des deux classes CsvFileLoader et DataGateway.
 
-<?php
-
-class DataImporter
-{
-    private $loader;
-    private $gateway;
-
-    public function __construct()
+    class DataImporter
     {
-        $this->loader  = new CsvFileLoader();
-        $this->gateway = new DataGateway();
+        private $loader;
+        private $gateway;
+
+        public function __construct()
+        {
+            $this->loader  = new CsvFileLoader();
+            $this->gateway = new DataGateway();
+        }
     }
-}
+
+Instancier les dépendances directement à l'intérieur du constructeur limite considérablement les capacités à étendre le code mais aussi à le tester. En effet, en codant en dur une instanciation avec le mot clé new, la classe DataImporter devient fortement couplée à sa dépendance CsvFileLoader. Cela signifie aussi qu'il est impossible de remplacer cette dépendance par une autre pour un besoin ultérieur. Aussi cela empêche de tester unitairement la classe DataImporter puisque les dépendances ne peuvent être remplacées par des "mocks".
+
+
+    class DataImporter
+    {
+        private $loader;
+        private $gateway;
+
+        public function __construct(FileLoader $loader, Gateway $gateway)
+        {
+            $this->loader  = $loader;
+            $this->gateway = $gateway;
+        }
+    }
 
 **Utiliser les événements Symfony2 pour un code SOLID**
 
 Prenons pour exemple, un service Symfony dont l'objectif est d'enregistrer les données d'un utilisateur issu d'un formulaire. Le code pourrait alors ressembler à quelque chose comme cela :
 
-<?php
-// Controller/UserController.php
-public function newAction(Request $request)
-{
-  $user = new User();
-  $form = $this->createForm();
-  $form->handleRequest($request);
-  if ($form->isValid()) {
-    $manager = $this->get('app.user_manager');
-    $manager->save($user);
-    return $this->redirectToRoute('user_show', ['id' => $user->getId()]);
-  }
-  return [ 'form' => $form->createView() ];
-}
-// Manager/UserManager.php
-public function save(User $user)
-{
-  $this->entityManager->persist($user);
-  $this->entityManager->flush();
-}
+    <?php
+    // Controller/UserController.php
+    public function newAction(Request $request)
+    {
+      $user = new User();
+      $form = $this->createForm();
+      $form->handleRequest($request);
+      if ($form->isValid()) {
+        $manager = $this->get('app.user_manager');
+        $manager->save($user);
+        return $this->redirectToRoute('user_show', ['id' => $user->getId()]);
+      }
+      return [ 'form' => $form->createView() ];
+    }
+    // Manager/UserManager.php
+    public function save(User $user)
+    {
+      $this->entityManager->persist($user);
+      $this->entityManager->flush();
+    }
+
 Ce code respecte bien le principe de responsabilité unique, chacune de nos classes n'a qu'un seul objectif. Mais imaginons maintenant que nous souhaitons envoyer un email à l'utilisateur que nous venons de créer.
 Rien de difficile, il suffit alors de modifier notre manager pour envoyer le mail lors de la création du compte :
-// Manager/UserManager.php
-public function save(User $user)
-{
-  $this->entityManager->persist($user);
-  $this->entityManager->flush();
-  $this->emailManager->sendNewAccountNotification($user);
-}
+
+    // Manager/UserManager.php
+    public function save(User $user)
+    {
+      $this->entityManager->persist($user);
+      $this->entityManager->flush();
+      $this->emailManager->sendNewAccountNotification($user);
+    }
+
 Sauf qu'en ajoutant cette ligne, nous venons de casser le principe de responsabilité unique de notre service gérant les utilisateurs. Réfléchissez bien, si vous souhaitez réutiliser la classe UserManager dans une autre application, mais que cette dernière ne souhaite pas envoyer de notification, comment allez-vous faire ?
 Symfony2 nous permet d'éviter ce couplage très simplement, au travers de la gestion des événements. L'idée est très simple, une fois l'enregistrement du nouvel utilisateur effectué, nous allons émettre un signal afin d'indiquer le succès de la création. Ce signal pourra alors être capter par différentes classes afin de déclencher différentes actions (un envoi de notification dans notre exemple).
 Commençons par modifier notre classe UserManager :
 
-// Manager/UserManager.php
-public function __construct(EventDispatcherInterface $dispatcher, ...)
-{
-  $this->dispatcher = $dispatcher;
-  // ...
-}
-public function save(User $user)
-{
-  $this->entityManager->persist($user);
-  $this->entityManager->flush();
-  $this->dispatcher->dispatch('user.create', new UserEvent($user));
-}
+    // Manager/UserManager.php
+    public function __construct(EventDispatcherInterface $dispatcher, ...)
+    {
+      $this->dispatcher = $dispatcher;
+      // ...
+    }
+    public function save(User $user)
+    {
+      $this->entityManager->persist($user);
+      $this->entityManager->flush();
+      $this->dispatcher->dispatch('user.create', new UserEvent($user));
+    }
 
-use Symfony\Component\EventDispatcher\Event;
-class UserEvent extends Event
-{
-  private $user;
-  public function __construct(User $user)
-  {
-    $this->user = $user;
-  }
-  public function getUser()
-  {
-      return $this->user;
-  }
-}
-
-<?php
-use Symfony\Component\EventDispatcher\EventSubscriberInterface;
-class UserNotificationListener implements EventSubscriberInterface
-{
-  private $emailManager;
-  public function __construct(EmailManagerInterface $emailManager)
-  {
-    $this->emailManager = $emailManager;
-  }
-  public function onUserCreate(UserEvent $event)
-  {
-    $this->emailManager->sendNewAccountNotification($event->getUser());
-  }
-  public static function getSubscribedEvents()
-  {
-    return [
-      'user.create' => 'onUserCreate',
-    ];
-  }
-}
+    use Symfony\Component\EventDispatcher\Event;
+    class UserEvent extends Event
+    {
+      private $user;
+      public function __construct(User $user)
+      {
+        $this->user = $user;
+      }
+      public function getUser()
+      {
+          return $this->user;
+      }
+    }
 
 
-// Resources/config/services.yml
-services:
-  listener.user_mailer_notification:
-    class: Listener\UserNotificationListener
-    arguments:
-      - @app.manager.email
-    tags:
-      - { name: kernel.event_subscriber }
+    use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+    class UserNotificationListener implements EventSubscriberInterface
+    {
+      private $emailManager;
+      public function __construct(EmailManagerInterface $emailManager)
+      {
+        $this->emailManager = $emailManager;
+      }
+      public function onUserCreate(UserEvent $event)
+      {
+        $this->emailManager->sendNewAccountNotification($event->getUser());
+      }
+      public static function getSubscribedEvents()
+      {
+        return [
+          'user.create' => 'onUserCreate',
+        ];
+      }
+}
+
+
+    // Resources/config/services.yml
+    services:
+      listener.user_mailer_notification:
+        class: Listener\UserNotificationListener
+        arguments:
+          - @app.manager.email
+        tags:
+          - { name: kernel.event_subscriber }
+
 **Source**
+
 http://afsy.fr/avent/2013/02-principes-stupid-solid-poo
+
 <blockquote>Moetez Torkhani</blockquote>
