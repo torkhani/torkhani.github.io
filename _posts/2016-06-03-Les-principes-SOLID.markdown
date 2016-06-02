@@ -27,8 +27,9 @@ Si une classe a plus d’une responsabilité, ces dernières se retrouveront li�
 
 
 <?php
- class User
- {
+
+class User
+{
     public function login($user, $password)
       {
           // si la session n'existe pas encore, il faut l'initialiser
@@ -49,7 +50,7 @@ Si une classe a plus d’une responsabilité, ces dernières se retrouveront li�
              return false;
          }
      }
- }
+}
 
 
 Dans cet exemple , La méthode login à deux casquettes: elle se charge de trouver les données de l'utilisateur et de gêrer la session. Ce qui pose plusieurs problèmes:
