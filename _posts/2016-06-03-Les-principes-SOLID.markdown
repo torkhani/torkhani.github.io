@@ -26,34 +26,34 @@ Comme son nom l’indique, ce principe signifie qu’une classe ne doit posséde
 Si une classe a plus d’une responsabilité, ces dernières se retrouveront liées. Les modifications apportées à une responsabilité impacteront l’autre, augmentant la rigidité et la fragilité du code.
 
 
-        <?php
+    <?php
 
-        class User
-        {
-            public function login($user, $password)
-              {
-                  // si la session n'existe pas encore, il faut l'initialiser
-                  if (!session_id()) {
-                      session_start();
-                  }
-                 // rechercher dans la table user un utilisateur avec ce couple login / mot de passe
-                 $sth = $this->pdo->query("SELECT * FROM users WHERE username='$user' AND password='$password'");
-                 // si il y a des résultats
-                 if ($sth->rowCount()) {
-                     // hydrater l'objet courant
-                     $this->data = $sth->fetch(PDO::FETCH_ASSOC);
-                     // enregistrer l'utilisateur courant sur la session
-                     $_SESSION['logged'] = true;
-                     $_SESSION['user'] = $this;
-                     return true;
-                 } else {
-                     return false;
-                 }
+    class User
+    {
+        public function login($user, $password)
+          {
+              // si la session n'existe pas encore, il faut l'initialiser
+              if (!session_id()) {
+                  session_start();
+              }
+             // rechercher dans la table user un utilisateur avec ce couple login / mot de passe
+             $sth = $this->pdo->query("SELECT * FROM users WHERE username='$user' AND password='$password'");
+             // si il y a des résultats
+             if ($sth->rowCount()) {
+                 // hydrater l'objet courant
+                 $this->data = $sth->fetch(PDO::FETCH_ASSOC);
+                 // enregistrer l'utilisateur courant sur la session
+                 $_SESSION['logged'] = true;
+                 $_SESSION['user'] = $this;
+                 return true;
+             } else {
+                 return false;
              }
-        }
+         }
+    }
 
 
-Dans cet exemple , La méthode login à deux casquettes: elle se charge de trouver les données de l'utilisateur et de gêrer la session. Ce qui pose plusieurs problèmes:
+Dans cet exemple , La méthode `login` à deux casquettes: elle se charge de trouver les données de l'utilisateur et de gêrer la session. Ce qui pose plusieurs problèmes:
 - si on change la structure de la table users, alors tous les scripts qui dépendent du contenu de $_SESSION['user'] sont potentiellement invalides
 - si on décide de changer la méthode d'authentification, alors il faut également changer la classe User et potentiellement la requête de sélection
 - on ne peut pas écrire simplement les tests unitaires de cette méthode car elle utilise la superglobale $_SESSION
@@ -61,39 +61,39 @@ Dans cet exemple , La méthode login à deux casquettes: elle se charge de trouv
 Une solution préférable est donc de séparer ces deux responsabilités:
 
 
-  class User
-  {
-      public function getUserFromLoginPassword($user, $password)
-      {
-          // rechercher dans la table user un utilisateur avec ce couple login / mot de passe
-          $sth = $this->pdo->query("SELECT * FROM users WHERE username='$user' AND password='$password'");
-         if ($sth->rowCount()) {
-             $this->data = $sth->fetch(PDO::FETCH_ASSOC);
-             return $this;
-         } else {
-             return null;
+    class User
+    {
+          public function getUserFromLoginPassword($user, $password)
+          {
+              // rechercher dans la table user un utilisateur avec ce couple login / mot de passe
+              $sth = $this->pdo->query("SELECT * FROM users WHERE username='$user' AND password='$password'");
+             if ($sth->rowCount()) {
+                 $this->data = $sth->fetch(PDO::FETCH_ASSOC);
+                 return $this;
+             } else {
+                 return null;
+             }
+          }
+    }
+    class Security
+    {
+         public function authenticate($user, $password)
+         {
+             $user = new User;
+             // rechercher l'utilisateur correspondant
+             if ($user->getUserFromLoginPassword($user, $password)) {
+                 // si la session n'existe pas encore, il faut l'initialiser
+                 if (!session_id())
+                     session_start();
+                 // enregistrer l'utilisateur courant sur la session
+                 $_SESSION['logged'] = true;
+                 $_SESSION['user'] = $user;
+                 return true;
+             } else {
+                 return false;
+             }
          }
-     }
- }
- class Security
- {
-     public function authenticate($user, $password)
-     {
-         $user = new User;
-         // rechercher l'utilisateur correspondant
-         if ($user->getUserFromLoginPassword($user, $password)) {
-             // si la session n'existe pas encore, il faut l'initialiser
-             if (!session_id())
-                 session_start();
-             // enregistrer l'utilisateur courant sur la session
-             $_SESSION['logged'] = true;
-             $_SESSION['user'] = $user;
-             return true;
-         } else {
-             return false;
-         }
-     }
- }
+    }
 
 On dirait pourtant que ça ne change pas grand-chose au final. On a juste déplacé du code d'un point A à un point B. Pourtant il y a une différence fondamentale entre ces deux codes: tant que la méthode User::getUserFromLoginPassword conservera son prototype (i.e. son nom et ses arguments), la classe Security pourra fonctionner en parfaite autonomie et on n'aura pas à changer la classe User si on doit changer la méthode de login. De plus, il devient désormais possible de tester exhaustivement la classe User.
 
@@ -101,9 +101,9 @@ On dirait pourtant que ça ne change pas grand-chose au final. On a juste dépla
 
 Le principe ouvert / fermé consiste à rendre les modules ouverts à l'extension et fermés aux modifications. En d'autres termes, il s'agit de pouvoir enrichir aisément les fonctionnalités d'un module sans avoir à en modifier son comportement.
 
- <?php
-  class Vehicle
-  {
+    <?php
+    class Vehicle
+    {
       public function __construct($engineType)
       {
           switch ($engineType) {
@@ -118,48 +118,49 @@ Le principe ouvert / fermé consiste à rendre les modules ouverts à l'extensio
                  break;
          }
      }
- }
- ?>
+    }
+    ?>
 
 Ma voiture roule au GPL. Mais ce cas n'est visiblement pas géré par le constructeur de Car. Dans l'exemple ci-dessus, mes seules alternatives sont:
-    ajouter à la main case 'gpl' dans le swich
-    étendre Car en GplCar en surchargeant son constructeur
+- ajouter à la main case 'gpl' dans le swich
+- étendre Car en GplCar en surchargeant son constructeur
+
 Il eut été préférable de pouvoir passer directement un objet moteur (engine) au constructeur afin qu'on soit libre de choisir quel moteur on veut pour la voiture:
 
-<?php
-  class Car
-  {
-      public function __construct(Engine $engine)
+    <?php
+      class Car
       {
-          $this->engine = $engine;
+          public function __construct(Engine $engine)
+          {
+              $this->engine = $engine;
+          }
       }
-  }
- ?>
+    ?>
 
 **Liskov Substitution Principle (LSK)**
 
 Il s'agit ni-plus ni-moins que d'imposer le respect des prototypes d'une classe au niveau de ses filles. Une classe dérivée doit toujour se comporter comme sa mère afin que son utilisation soit rigoureusement identique: on doit pouvoir les substituer. Il faut également éviter de lever des exceptions imprévues ou modifier l'état de l'objet de manière inadaptée par rapport au comportement de la mère.
 
-<?php
-  class Rectangle
-  {
-      public function setDimentions($width, $width)
+    <?php
+      class Rectangle
       {
-          if ($with <= 0 || $height <= 0)
-              throw new InvalidArgumentException("with or height cannot be null or negative");
-         $this->width  = $width;
-         $this->height = $height;
+          public function setDimentions($width, $width)
+          {
+              if ($with <= 0 || $height <= 0)
+                  throw new InvalidArgumentException("with or height cannot be null or negative");
+             $this->width  = $width;
+             $this->height = $height;
+         }
      }
- }
- class Square extends Rectangle
- {
-     public function setDimentions($width, $height)
+     class Square extends Rectangle
      {
-         if (!$width == $height)
-             throw new UnexpectedValueException("width should be equal to height");
-         parent::setDimentions($width, $height);
+         public function setDimentions($width, $height)
+         {
+             if (!$width == $height)
+                 throw new UnexpectedValueException("width should be equal to height");
+             parent::setDimentions($width, $height);
+         }
      }
- }
 
 **Interface Segregation Principle (ISP)**
 
