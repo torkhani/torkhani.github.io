@@ -14,6 +14,7 @@ categories: common
 SOLID définit cinq bonnes pratiques orientées objet à appliquer au code afin d'en simplifier la maintenance, la testabilité et les évolutions futures.
 
 SOLID est acronyme regroupant les principes suivants :
+
 - Single Responsability Principle (SRP),
 - Open Closed Principle (OCP),
 - Liskov Substitution Principle (LSK),
@@ -27,252 +28,196 @@ Si une classe a plus d’une responsabilité, ces dernières se retrouveront li�
 
 
     <?php
-    class User
+
+    class CsvDataImporter
     {
-        public function login($user, $password)
+        public function import($file)
         {
-            // si la session n'existe pas encore, il faut l'initialiser
-            if (!session_id()) {
-                 session_start();
+            $records = $this->loadFile($file);
+
+            $this->importData($records);
+        }
+
+        private function loadFile($file)
+        {
+            $records = array();
+            if (false !== $handle = fopen($file, 'r')) {
+                while ($record = fgetcsv($handle)) {
+                    $records[] = $record;
+                }
             }
-            // rechercher dans la table user un utilisateur avec ce couple login / mot de passe
-            $sth = $this->pdo->query("SELECT * FROM users WHERE username='$user' AND password='$password'");
-            // si il y a des résultats
-             if ($sth->rowCount()) {
-                // hydrater l'objet courant
-                $this->data = $sth->fetch(PDO::FETCH_ASSOC);
-                // enregistrer l'utilisateur courant sur la session
-                $_SESSION['logged'] = true;
-                $_SESSION['user'] = $this;
-                return true;
-             } else {
-                return false;
-             }
+            fclose($handle);
+
+            return $records;
+        }
+
+        private function importData(array $records)
+        {
+            try {
+                $this->db->beginTransaction();
+                foreach ($records as $record) {
+                    $stmt = $this->db->prepare('INSERT INTO ...');
+                    $stmt->execute($record);
+                }
+                $this->db->commit();
+            } catch (PDOException $e) {
+                $this->db->rollback();
+                throw $e;
+            }
         }
     }
 
 
-Dans cet exemple , La méthode `login` à deux casquettes: elle se charge de trouver les données de l'utilisateur et de gêrer la session. Ce qui pose plusieurs problèmes:
-- si on change la structure de la table users, alors tous les scripts qui dépendent du contenu de $_SESSION['user'] sont potentiellement invalides
-- si on décide de changer la méthode d'authentification, alors il faut également changer la classe User et potentiellement la requête de sélection
-- on ne peut pas écrire simplement les tests unitaires de cette méthode car elle utilise la superglobale $_SESSION
+Dans cet exemple, La classe `CsvDataImporter` à deux casquettes:
 
-Une solution préférable est donc de séparer ces deux responsabilités:
+- Lire un fichier CSV et transformer les données en tableaux PHP,
+- Importer ces enregistrements dans une base de données MySQL.
 
+Ce qui pose plusieurs problèmes:
+- il faudra modifier la méthode loadFile si demain les données sont issues d'un fichier XML ou JSON
+- Une réécriture de la méthode importData sera nécessaire s'il est question de charger ces données dans un Mongodb par exemple.
 
-    class User
+Une solution préférable est donc de décomposer la classe `CsvDataImporter` en deux sous-classes : `CsvFileLoader` et `DataGateway`. La nouvelle classe générique `DataImporter` n'a alors plus qu'à déléguer ces deux tâches à ses deux dépendances.
+
+    <?php
+
+    class DataImporter
     {
-          public function getUserFromLoginPassword($user, $password)
-          {
-              // rechercher dans la table user un utilisateur avec ce couple login / mot de passe
-              $sth = $this->pdo->query("SELECT * FROM users WHERE username='$user' AND password='$password'");
-             if ($sth->rowCount()) {
-                 $this->data = $sth->fetch(PDO::FETCH_ASSOC);
-                 return $this;
-             } else {
-                 return null;
-             }
-          }
-    }
-    class Security
-    {
-         public function authenticate($user, $password)
-         {
-             $user = new User;
-             // rechercher l'utilisateur correspondant
-             if ($user->getUserFromLoginPassword($user, $password)) {
-                 // si la session n'existe pas encore, il faut l'initialiser
-                 if (!session_id())
-                     session_start();
-                 // enregistrer l'utilisateur courant sur la session
-                 $_SESSION['logged'] = true;
-                 $_SESSION['user'] = $user;
-                 return true;
-             } else {
-                 return false;
-             }
-         }
+        private $loader;
+        private $gateway;
+
+        public function __construct(FileLoader $loader, Gateway $gateway)
+        {
+            $this->loader  = $loader;
+            $this->gateway = $gateway;
+        }
+        public function import($file)
+        {
+            foreach ($this->loader->load($file) as $record) {
+                $this->gateway->insert($record);
+            }
+        }
     }
 
-On dirait pourtant que ça ne change pas grand-chose au final. On a juste déplacé du code d'un point A à un point B. Pourtant il y a une différence fondamentale entre ces deux codes: tant que la méthode User::getUserFromLoginPassword conservera son prototype (i.e. son nom et ses arguments), la classe Security pourra fonctionner en parfaite autonomie et on n'aura pas à changer la classe User si on doit changer la méthode de login. De plus, il devient désormais possible de tester exhaustivement la classe User.
+
+Note : les types des dépendances dans le constructeur de la classe DataImporter sont ici des classes abstraites ou des interfaces.
+
+Avec ce découpage en trois petites classes, il est désormais plus facile de tester unitairement chaque objet, de faire évoluer les implémentations existantes ou d'en ajouter de nouvelles.
 
 **Open Closed Principle (OCP)**
 
 Le principe ouvert / fermé consiste à rendre les modules ouverts à l'extension et fermés aux modifications. En d'autres termes, il s'agit de pouvoir enrichir aisément les fonctionnalités d'un module sans avoir à en modifier son comportement.
 
-    <?php
-    class Vehicle
-    {
-      public function __construct($engineType)
-      {
-          switch ($engineType) {
-              case 'fuel':
-                  $this->engine = new FuelEngine;
-                 break;
-             case 'diesel':
-                 $this->engine = new DieselEngine;
-                 break;
-             case 'electric':
-                 $this->engine = new ElectricEngine;
-                 break;
-         }
-     }
-    }
-    ?>
+Le dernier exemple présenté à la fin du principe de responsabilité unique se conforme en effet au principe ouvert / fermé. En effet, il est très facile de supporter de nouveaux formats de sérialisation des données ainsi que de nouveaux adapteurs pour des systèmes de stockage.
 
-Ma voiture roule au GPL. Mais ce cas n'est visiblement pas géré par le constructeur de Car. Dans l'exemple ci-dessus, mes seules alternatives sont:
-- ajouter à la main case 'gpl' dans le swich
-- étendre Car en GplCar en surchargeant son constructeur
+    $importer = new DataImporter(new CsvFileLoader(), new MySQLGateway());
+    $importer = new DataImporter(new XmlFileLoader(), new MongoGateway());
+    $importer = new DataImporter(new JsonFileLoader(), new ElasticSearchGateway());
 
-Il eut été préférable de pouvoir passer directement un objet moteur (engine) au constructeur afin qu'on soit libre de choisir quel moteur on veut pour la voiture:
 
-    <?php
-      class Car
-      {
-          public function __construct(Engine $engine)
-          {
-              $this->engine = $engine;
-          }
-      }
-    ?>
+Comme le montre le code ci-dessus, l'objet DataImporter n'a pas été modifié. Il s'agit juste de lui injecter de nouvelles implémentations des interfaces FileLoader et Gateway afin de pouvoir utiliser par exemple des données sérialisées en JSON à insérer dans une base MongoDB.
 
 **Liskov Substitution Principle (LSK)**
 
 Il s'agit ni-plus ni-moins que d'imposer le respect des prototypes d'une classe au niveau de ses filles. Une classe dérivée doit toujour se comporter comme sa mère afin que son utilisation soit rigoureusement identique: on doit pouvoir les substituer. Il faut également éviter de lever des exceptions imprévues ou modifier l'état de l'objet de manière inadaptée par rapport au comportement de la mère.
 
     <?php
-      class Rectangle
-      {
-          public function setDimentions($width, $width)
-          {
-              if ($with <= 0 || $height <= 0)
-                  throw new InvalidArgumentException("with or height cannot be null or negative");
-             $this->width  = $width;
-             $this->height = $height;
-          }
-      }
-     class Square extends Rectangle
-     {
-         public function setDimentions($width, $height)
-         {
-             if (!$width == $height)
-                 throw new UnexpectedValueException("width should be equal to height");
-             parent::setDimentions($width, $height);
-         }
-     }
+
+    abstract class AbstractLoader implements FileLoader
+    {
+        public function load($file)
+        {
+            if (!file_exists($file)) {
+                throw new \InvalidArgumentException(sprintf('%s does not exist.', $file));
+            }
+
+            return [];
+        }
+    }
+
+    class CsvFileLoader extends AbstractLoader
+    {
+        public function load($file)
+        {
+            $records = parent::load($file);
+
+            if (false !== $handle = fopen($file, 'r')) {
+                while ($record = fgetcsv($handle)) {
+                    $records[] = $record;
+                }
+            }
+            fclose($handle);
+
+            return $records;
+        }
+    }
+
+
+Si toutes les classes concrètes dérivant la classe AbstractLoader conservent les mêmes types de paramètres d'entrée et de sortie, alors c'est qu'elles s'engagent à respecter le contrat de l'interface FileLoader. Par conséquent, il est possible de remplacer un objet CsvFileLoader par une instance de la classe XmlFileLoader dans le constructeur de la classe DataImporter.
 
 **Interface Segregation Principle (ISP)**
 
-Les client ne devraient pas dépendre de méthodes qu'ils n'utilisent pas. On pourrait presque y voir une forme d'héritage fonctionnel: une interface ne devrait pas déclarer plus d'un ensemble cohérent de méthodes. On parle aussi d'interfaces de rôles.
+Le principe de ségrégation d'interfaces est identique au principe de responsabilité unique des classes (SRP), mais à la différence qu'il s'applique aux interfaces.
 
-<?php
-  interface UserInterface
-  {
-      public function login($user, $password);
-      public function logout();
-      public function isConnected();
-     public function isAdmin();
-     public function getRights();
- }
- class User implements UserInterface
- {
- }
+    <?php
 
-Ici l'interface UserInterface présente deux rôles: la gestion du login ainsi que la gestion des droits. Il eut été préférable de séparer ces deux rôles dans deux interfaces séparées, quitte à les réunir par la suite dans l'implémentation concrête de la classe User:
+    interface UrlGeneratorInterface
+    {
+        public function generate($name, $parameters = array());
+    }
 
-<?php
- interface LoginInterface
-  {
-      public function login($user, $password);
-      public function logout();
-      public function isConnected();
- }
- interface PermissionInterface
- {
-     public function isAdmin();
-     public function getRights();
- }
- class User implements LogginInterface, PermissionInterface
- {
- }
+    interface UrlMatcherInterface
+    {
+        public function match($pathinfo);
+    }
 
-Cette aproche est beaucoup plus souple car désormais les classes clientes pourront utiliser les instances de LoginInterface et PermissionInterface suivant leur besoin sans se retrouver obligé de supporter d'autres méthodes que celles décrites par le rôle qu'elles veulent utiliser. Par exemple, un composant qui ne s'occupe que de vérifier qu'un utilisateur dispose bien des droits d'accès à une ressource se fiche pas mal des méthodes de LoginInterface.
-Il faut cependant faire attention à ne pas trop segmenter les rôles et se retrouver ainsi avec une multitude d'interfaces. Ici encore, il faut faire preuve de bon sens.
+    interface RouterInterface extends UrlMatcherInterface, UrlGeneratorInterface
+    {
+        public function getRouteCollection();
+    }
+
+
+    <?php
+
+    namespace Symfony\Bridge\Twig\Extension;
+
+    use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
+
+    class RoutingExtension extends \Twig_Extension
+    {
+        private $generator;
+
+        public function __construct(UrlGeneratorInterface $generator)
+        {
+            $this->generator = $generator;
+        }
+
+        public function getPath($name, $parameters = array())
+        {
+            return $this->generator->generate($name, $parameters);
+        }
+    }
 
 **Dependency Injection Principle (DIP)**
 
-Le dernier de ces 5 principes est le principe d’inversion des dépendances (D pour Dependency Inversion).
+Le dernier de ces 5 principes est le principe d’inversion des dépendances.
+ stipule qu'il faille programmer par rapport à des abstractions plutôt que des implémentations.
 
-class EBookReader
-  {
-      private $book;
-      function __construct(PDFBook $book)
-      {
-          $this->book = $book;
-     }
-     function read()
-     {
-         return $this->book->read();
-     }
- }
- class PDFBook
- {
-     function read()
-     {
-         echo "reading a pdf book.";
-     }
- }
-
-Imaginons un instant que le scénario suivant: vous travaillez pour un éditeur de livres en ligne dont le choix initial était de proposer des livres au format PDF. Vous avez alors créé la classe PDFBook pour représenter les entrées de la table pdf_books ainsi que la liseuse EBookReader et tout fonctionne bien.
-Jusqu'au jour où un commercial vient vous voir avec une idée révolutionnaire ! On va se plugger sur l'API d'un partenaire pour proposer la lecture de ses bouquins au travers de notre interface afin d'augmenter pour l'utilisateur la taille de la bibliothèque. Chouette ! A ceci près que l'API vous envoie des fichiers au format ePub, illisibles par votre liseuse. Vous êtes donc obligé de mettre à jour EBookReader en ajoutant la gestion du nouveau format:
+Le code ci-dessous réalise complètement l'inverse puisque la classe DataImporter dépend directement de deux implémentations concrètes du fait de l'instanciation des deux classes CsvFileLoader et DataGateway.
 
 <?php
-  class EBookReader
-  {
-      private $book;
-      function __construct($book)
-      {
-          if (!$book instanceof EPubBook && !$book instanceof PDFBook)
-             throw new InvalidArgumentException("invalid book");
-         $this->book = $book;
-     }
-     function read()
-     {
-         return $this->book->read();
-     }
- }
- class EPubBook
- {
-     function read()
-     {
-         echo "reading a epub book.";
-     }
- }
 
-Puis vient le jour où on décide d'ajouter le format Docx, puis le format Kindle, puis le format TXT etc. En regardant en arrière, il aurait mieux valu que la liseuse accepte un type abstrat d'EBook plutôt qu'un type concrêt:
+class DataImporter
+{
+    private $loader;
+    private $gateway;
 
-<?php
- interface EBook
-  {
-      public function read();
-  }
-  class EBookReader
-  {
-     private $book;
-     function __construct(EBook $book)
-     {
-         if (!$book instanceof EPubBook && !$book instanceof PDFBook)
-             throw new InvalidArgumentException("invalid book");
-         $this->book = $book;
-     }
-     function read()
-     {
-         return $this->book->read();
-     }
- }
- ?>
-
-Désormais, vous pouvez créer autant de types d'EBook que vous voulez sans devoir toucher à la classe EBookReader à chaque fois.
+    public function __construct()
+    {
+        $this->loader  = new CsvFileLoader();
+        $this->gateway = new DataGateway();
+    }
+}
 
 **Utiliser les événements Symfony2 pour un code SOLID**
 
