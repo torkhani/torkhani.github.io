@@ -12,6 +12,7 @@ categories: common
 **Le principe SOLID**
 
 SOLID définit cinq bonnes pratiques orientées objet à appliquer au code afin d'en simplifier la maintenance, la testabilité et les évolutions futures.
+
 SOLID est acronyme regroupant les principes suivants :
 - Single Responsability Principle (SRP),
 - Open Closed Principle (OCP),
@@ -32,7 +33,6 @@ Si une classe a plus d’une responsabilité, ces dernières se retrouveront li�
           if (!session_id()) {
               session_start();
           }
-
          // rechercher dans la table user un utilisateur avec ce couple login / mot de passe
          $sth = $this->pdo->query("SELECT * FROM users WHERE username='$user' AND password='$password'");
          // si il y a des résultats
@@ -50,9 +50,9 @@ Si une classe a plus d’une responsabilité, ces dernières se retrouveront li�
  }
 
 Dans cet exemple , La méthode login à deux casquettes: elle se charge de trouver les données de l'utilisateur et de gêrer la session. Ce qui pose plusieurs problèmes:
-    - si on change la structure de la table users, alors tous les scripts qui dépendent du contenu de $_SESSION['user'] sont potentiellement invalides
-    - si on décide de changer la méthode d'authentification, alors il faut également changer la classe User et potentiellement la requête de sélection
-    - on ne peut pas écrire simplement les tests unitaires de cette méthode car elle utilise la superglobale $_SESSION
+- si on change la structure de la table users, alors tous les scripts qui dépendent du contenu de $_SESSION['user'] sont potentiellement invalides
+- si on décide de changer la méthode d'authentification, alors il faut également changer la classe User et potentiellement la requête de sélection
+- on ne peut pas écrire simplement les tests unitaires de cette méthode car elle utilise la superglobale $_SESSION
 
 Une solution préférable est donc de séparer ces deux responsabilités:
 
@@ -71,7 +71,6 @@ Une solution préférable est donc de séparer ces deux responsabilités:
          }
      }
  }
- 
  class Security
  {
      public function authenticate($user, $password)
