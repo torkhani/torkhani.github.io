@@ -25,6 +25,7 @@ SOLID est acronyme regroupant les principes suivants :
 Comme son nom l’indique, ce principe signifie qu’une classe ne doit posséder qu’une et une seule responsabilité.
 Si une classe a plus d’une responsabilité, ces dernières se retrouveront liées. Les modifications apportées à une responsabilité impacteront l’autre, augmentant la rigidité et la fragilité du code.
 
+
 <?php
  class User
  {
@@ -49,6 +50,7 @@ Si une classe a plus d’une responsabilité, ces dernières se retrouveront li�
          }
      }
  }
+
 
 Dans cet exemple , La méthode login à deux casquettes: elle se charge de trouver les données de l'utilisateur et de gêrer la session. Ce qui pose plusieurs problèmes:
 - si on change la structure de la table users, alors tous les scripts qui dépendent du contenu de $_SESSION['user'] sont potentiellement invalides
