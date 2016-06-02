@@ -25,6 +25,7 @@ SOLID est acronyme regroupant les principes suivants :
 Comme son nom l’indique, ce principe signifie qu’une classe ne doit posséder qu’une et une seule responsabilité.
 Si une classe a plus d’une responsabilité, ces dernières se retrouveront liées. Les modifications apportées à une responsabilité impacteront l’autre, augmentant la rigidité et la fragilité du code.
 
+<?php
  class User
  {
     public function login($user, $password)
