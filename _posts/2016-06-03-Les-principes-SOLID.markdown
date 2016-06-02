@@ -26,31 +26,31 @@ Comme son nom l’indique, ce principe signifie qu’une classe ne doit posséde
 Si une classe a plus d’une responsabilité, ces dernières se retrouveront liées. Les modifications apportées à une responsabilité impacteront l’autre, augmentant la rigidité et la fragilité du code.
 
 
-<?php
+        <?php
 
-class User
-{
-    public function login($user, $password)
-      {
-          // si la session n'existe pas encore, il faut l'initialiser
-          if (!session_id()) {
-              session_start();
-          }
-         // rechercher dans la table user un utilisateur avec ce couple login / mot de passe
-         $sth = $this->pdo->query("SELECT * FROM users WHERE username='$user' AND password='$password'");
-         // si il y a des résultats
-         if ($sth->rowCount()) {
-             // hydrater l'objet courant
-             $this->data = $sth->fetch(PDO::FETCH_ASSOC);
-             // enregistrer l'utilisateur courant sur la session
-             $_SESSION['logged'] = true;
-             $_SESSION['user'] = $this;
-             return true;
-         } else {
-             return false;
-         }
-     }
-}
+        class User
+        {
+            public function login($user, $password)
+              {
+                  // si la session n'existe pas encore, il faut l'initialiser
+                  if (!session_id()) {
+                      session_start();
+                  }
+                 // rechercher dans la table user un utilisateur avec ce couple login / mot de passe
+                 $sth = $this->pdo->query("SELECT * FROM users WHERE username='$user' AND password='$password'");
+                 // si il y a des résultats
+                 if ($sth->rowCount()) {
+                     // hydrater l'objet courant
+                     $this->data = $sth->fetch(PDO::FETCH_ASSOC);
+                     // enregistrer l'utilisateur courant sur la session
+                     $_SESSION['logged'] = true;
+                     $_SESSION['user'] = $this;
+                     return true;
+                 } else {
+                     return false;
+                 }
+             }
+        }
 
 
 Dans cet exemple , La méthode login à deux casquettes: elle se charge de trouver les données de l'utilisateur et de gêrer la session. Ce qui pose plusieurs problèmes:
