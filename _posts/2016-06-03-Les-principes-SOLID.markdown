@@ -100,22 +100,19 @@ Une solution préférable est donc de décomposer la classe `CsvDataImporter` en
     }
 
 
-Note : les types des dépendances dans le constructeur de la classe DataImporter sont ici des classes abstraites ou des interfaces.
-
-Avec ce découpage en trois petites classes, il est désormais plus facile de tester unitairement chaque objet, de faire évoluer les implémentations existantes ou d'en ajouter de nouvelles.
+Avec ce découpage, il est désormais plus facile de tester unitairement chaque objet, de faire évoluer les implémentations existantes ou d'en ajouter de nouvelles.
 
 **Open Closed Principle (OCP)**
 
-Le principe ouvert / fermé consiste à rendre les modules ouverts à l'extension et fermés aux modifications. En d'autres termes, il s'agit de pouvoir enrichir aisément les fonctionnalités d'un module sans avoir à en modifier son comportement.
+Les classes doivent être ouvertes aux extensions mais fermées aux modifications. En d'autres termes, il s'agit de pouvoir enrichir aisément les fonctionnalités d'un module sans avoir à en modifier son comportement.
 
 Le dernier exemple présenté à la fin du principe de responsabilité unique se conforme en effet au principe ouvert / fermé. En effet, il est très facile de supporter de nouveaux formats de sérialisation des données ainsi que de nouveaux adapteurs pour des systèmes de stockage.
+Il s'agit juste de lui injecter de nouvelles implémentations des interfaces FileLoader et Gateway afin de pouvoir utiliser par exemple des données sérialisées en JSON à insérer dans une base MongoDB.
 
     $importer = new DataImporter(new CsvFileLoader(), new MySQLGateway());
     $importer = new DataImporter(new XmlFileLoader(), new MongoGateway());
     $importer = new DataImporter(new JsonFileLoader(), new ElasticSearchGateway());
 
-
-Comme le montre le code ci-dessus, l'objet DataImporter n'a pas été modifié. Il s'agit juste de lui injecter de nouvelles implémentations des interfaces FileLoader et Gateway afin de pouvoir utiliser par exemple des données sérialisées en JSON à insérer dans une base MongoDB.
 
 **Liskov Substitution Principle (LSK)**
 
@@ -181,29 +178,30 @@ Le principe de ségrégation d'interfaces est identique au principe de responsab
 
 Ici l'interface UserInterface présente deux rôles: la gestion du login ainsi que la gestion des droits. Il eut été préférable de séparer ces deux rôles dans deux interfaces séparées, quitte à les réunir par la suite dans l'implémentation concrête de la classe User:
 
-      interface LoginInterface
-      {
-          public function login($user, $password);
-          public function logout();
-          public function isConnected();
-      }
+    interface LoginInterface
+    {
+      public function login($user, $password);
+      public function logout();
+      public function isConnected();
+    }
 
-     interface PermissionInterface
-     {
-         public function isAdmin();
-         public function getRights();
-     }
-     class User implements LogginInterface, PermissionInterface
-     {
+    interface PermissionInterface
+    {
+     public function isAdmin();
+     public function getRights();
+    }
+    class User implements LogginInterface, PermissionInterface
+    {
 
-     }
+    }
 
-Cette aproche est beaucoup plus souple car désormais les classes clientes pourront utiliser les instances de LoginInterface et PermissionInterface suivant leur besoin sans se retrouver obligé de supporter d'autres méthodes que celles décrites par le rôle qu'elles veulent utiliser. Par exemple, un composant qui ne s'occupe que de vérifier qu'un utilisateur dispose bien des droits d'accès à une ressource se fiche pas mal des méthodes de LoginInterface.
+Cette aproche est beaucoup plus souple car désormais les classes clientes pourront utiliser les instances de LoginInterface et PermissionInterface suivant leur besoin sans se retrouver obligé de supporter d'autres méthodes que celles décrites par le rôle qu'elles veulent utiliser.
 
 
 **Dependency Injection Principle (DIP)**
 
 Le dernier de ces 5 principes est le principe d’inversion des dépendances.
+
 Stipule qu'il faille programmer par rapport à des abstractions plutôt que des implémentations.
 
 Le code ci-dessous réalise complètement l'inverse puisque la classe DataImporter dépend directement de deux implémentations concrètes du fait de l'instanciation des deux classes CsvFileLoader et DataGateway.
@@ -220,8 +218,9 @@ Le code ci-dessous réalise complètement l'inverse puisque la classe DataImport
         }
     }
 
-Instancier les dépendances directement à l'intérieur du constructeur limite considérablement les capacités à étendre le code mais aussi à le tester. En effet, en codant en dur une instanciation avec le mot clé new, la classe DataImporter devient fortement couplée à sa dépendance CsvFileLoader. Cela signifie aussi qu'il est impossible de remplacer cette dépendance par une autre pour un besoin ultérieur. Aussi cela empêche de tester unitairement la classe DataImporter puisque les dépendances ne peuvent être remplacées par des "mocks".
+Instancier les dépendances directement à l'intérieur du constructeur limite considérablement les capacités à étendre le code mais aussi à le tester.
 
+Pour se conformer au principe d'injection de dépendances, il s'agit tout simplement de créer les deux dépendances de la classe DataImporter à l'extérieur de celle-ci, puis de les injecter dans le constructeur.
 
     class DataImporter
     {
@@ -234,6 +233,8 @@ Instancier les dépendances directement à l'intérieur du constructeur limite c
             $this->gateway = $gateway;
         }
     }
+
+Pour rappel, le principe d'injection de dépendance stipule qu'une classe doit dépendre d'abstractions et non d'implémentations. Par conséquent, il s'agit d'utiliser le typage des arguments par des interfaces au lieu de classes.
 
 **Utiliser les événements Symfony2 pour un code SOLID**
 
@@ -253,6 +254,7 @@ Prenons pour exemple, un service Symfony dont l'objectif est d'enregistrer les d
       }
       return [ 'form' => $form->createView() ];
     }
+
     // Manager/UserManager.php
     public function save(User $user)
     {
@@ -261,7 +263,7 @@ Prenons pour exemple, un service Symfony dont l'objectif est d'enregistrer les d
     }
 
 Ce code respecte bien le principe de responsabilité unique, chacune de nos classes n'a qu'un seul objectif. Mais imaginons maintenant que nous souhaitons envoyer un email à l'utilisateur que nous venons de créer.
-Rien de difficile, il suffit alors de modifier notre manager pour envoyer le mail lors de la création du compte :
+Il suffit alors de modifier notre manager pour envoyer le mail lors de la création du compte :
 
     // Manager/UserManager.php
     public function save(User $user)
@@ -271,8 +273,10 @@ Rien de difficile, il suffit alors de modifier notre manager pour envoyer le mai
       $this->emailManager->sendNewAccountNotification($user);
     }
 
-Sauf qu'en ajoutant cette ligne, nous venons de casser le principe de responsabilité unique de notre service gérant les utilisateurs. Réfléchissez bien, si vous souhaitez réutiliser la classe UserManager dans une autre application, mais que cette dernière ne souhaite pas envoyer de notification, comment allez-vous faire ?
+
+Sauf qu'en ajoutant cette ligne, nous venons de casser le principe de responsabilité unique de notre service gérant les utilisateurs.
 Symfony2 nous permet d'éviter ce couplage très simplement, au travers de la gestion des événements. L'idée est très simple, une fois l'enregistrement du nouvel utilisateur effectué, nous allons émettre un signal afin d'indiquer le succès de la création. Ce signal pourra alors être capter par différentes classes afin de déclencher différentes actions (un envoi de notification dans notre exemple).
+
 Commençons par modifier notre classe UserManager :
 
     // Manager/UserManager.php
@@ -289,6 +293,7 @@ Commençons par modifier notre classe UserManager :
     }
 
     use Symfony\Component\EventDispatcher\Event;
+
     class UserEvent extends Event
     {
       private $user;
@@ -302,8 +307,10 @@ Commençons par modifier notre classe UserManager :
       }
     }
 
+Il ne reste plus qu'à intercepter le signal et à envoyer notre email :
 
     use Symfony\Component\EventDispatcher\EventSubscriberInterface;
+
     class UserNotificationListener implements EventSubscriberInterface
     {
       private $emailManager;
@@ -321,8 +328,9 @@ Commençons par modifier notre classe UserManager :
           'user.create' => 'onUserCreate',
         ];
       }
-}
+    }
 
+Sans oublier de déclarer le service ^^ :
 
     // Resources/config/services.yml
     services:
@@ -332,6 +340,7 @@ Commençons par modifier notre classe UserManager :
           - @app.manager.email
         tags:
           - { name: kernel.event_subscriber }
+
 
 **Source**
 
