@@ -33,10 +33,9 @@ jobs:
         run: npx next build
 
       - name: Upload artifact 📡
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: dist
-          path: dist/
+          path: ./out
 
   deploy:
     environment:
