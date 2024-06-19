@@ -24,6 +24,10 @@ jobs:
       - name: Setup Node.js ⚙️ - Cache dependencies ⚡ - Install dependencies 🔧
         uses: ./.github/workflows/setup-node
 
+      - name: Download artifact 📡
+        uses: actions/download-artifact@v4
+        with:
+          path: ./out
       - name: Setup Pages ⚙️
         uses: actions/configure-pages@v4
         with:
